@@ -1,5 +1,4 @@
 import dearpygui.dearpygui as dpg
-import whisper, os
 import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write
@@ -12,6 +11,7 @@ Threshold = 0.1     # Minimum volume threshold to activate listening
 Vocals = [50, 1000] # Frequency range to detect sounds that could be speech
 EndBlocks = 100     # Number of blocks of silence to wait before sending to Whisper
 Internal = 50       # Number of blocks to wait before sending to Whisper (without silence)
+Debug = True
 
 
 class StreamHandler:
@@ -21,18 +21,28 @@ class StreamHandler:
         self.interval = 0
         self.prevblock = self.buffer = np.zeros((0,1))
         self.fileready = False
+        self.newsegment = False
 
     def receive_response(self, sock):
         while True:
-            # Wait for a response from file 2
+            # Wait for a response from the whisper server
             data = sock.recv(1024)
 
             # If there is no more data to receive, break out of the loop
             if not data:
                 break
 
-            # Print the response from file 2 to the screen
-            dpg.set_value("transcripion", data.decode())
+            # Print the response from the whisper server to the GUI
+            new_value = data.decode()
+            if self.newsegment:
+                self.newsegment = False
+                dpg.set_value("transcripion", '')
+                old_value = dpg.get_value("transcripion-previous") + '\n'
+                dpg.set_value("transcripion-previous", old_value + new_value)
+                new_value = ''
+            dpg.set_value("transcripion", new_value)
+            self.fileready = False
+            
 
         # Close the socket
         sock.close()
@@ -42,7 +52,7 @@ class StreamHandler:
             return
         freq = np.argmax(np.abs(np.fft.rfft(indata[:, 0]))) * SampleRate / frames
 
-        #Update GUI
+        # Update GUI
         dpg.set_value("frequency", "Frequency: " + str(round(freq,2)))
         old_value = dpg.get_value("progress-bar")
         if (old_value > freq/Vocals[1]):
@@ -65,25 +75,32 @@ class StreamHandler:
         else:
             self.padding -= 1
             self.interval = 0 if self.interval == 0 else self.interval -1 
-            dpg.set_value("test", self.interval)
-            dpg.set_value("test2", self.buffer.shape[0])
-            if self.interval == 0 and self.buffer.shape[0] > SampleRate:
+            if Debug:
+                dpg.set_value("interval", "interval: " + str(self.interval))
+                dpg.set_value("shape", "buffer.shape: " + str(self.buffer.shape[0]))
+            # Periodically save file and send to Whisper 
+            if not self.fileready and self.interval == 0 and self.buffer.shape[0] > SampleRate:
                 self.fileready = True
                 write('dictate.wav', SampleRate, self.buffer) 
+                print("1")
+            # Continue recording voice if not enough silence has passed
             if self.padding > 1:
                 dpg.set_value("status","Recording...")
                 self.buffer = np.concatenate((self.buffer, indata))
             # if enough silence has passed, write to file.
             elif self.padding < 1 < self.buffer.shape[0] > SampleRate: 
                 self.fileready = True
+                self.newsegment = True
                 write('dictate.wav', SampleRate, self.buffer) 
                 self.buffer = np.zeros((0,1))
                 dpg.set_value("status","Silence")
+                print("2")
             # if recording not long enough, reset buffer.
             elif self.padding < 1 < self.buffer.shape[0] < SampleRate: 
                 self.buffer = np.zeros((0,1))
                 print("\033[2K\033[0G", end='', flush=True)
                 dpg.set_value("status","Silence")
+                print("3")
             else:
                 self.prevblock = indata.copy() 
                 dpg.set_value("status","Silence")
@@ -91,7 +108,6 @@ class StreamHandler:
     def process(self, sock):
         dpg.render_dearpygui_frame()
         if self.fileready:
-            self.fileready = False
             #print("\n\033[90mTranscribing..\033[0m")
             message = 'send_hello_world'
             sock.sendall(message.encode())
@@ -100,9 +116,13 @@ class StreamHandler:
         # Create a socket object
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # Connect the socket to the port where file 2 is listening
-        server_address = ('localhost', 9999)
-        sock.connect(server_address)
+        # Connect the socket to the port where thw whisper server is listening
+        try:
+            server_address = ('localhost', 9999)
+            sock.connect(server_address)
+        except(ConnectionRefusedError):
+            print("Could not connect to socket server. Make sure whisperserver.py is running.")
+            return
 
         # Create a thread to receive responses from file 2
         receive_thread = threading.Thread(target=self.receive_response, args=(sock,))
@@ -113,7 +133,7 @@ class StreamHandler:
             while dpg.is_dearpygui_running():
                 self.process(sock)
 
-#GUI Code
+# GUI Code
 dpg.create_context()
 
 with dpg.window(label="Live Whisper", tag="Primary Window"):
@@ -121,10 +141,12 @@ with dpg.window(label="Live Whisper", tag="Primary Window"):
     dpg.add_progress_bar(tag="progress-bar")
     dpg.set_value("progress-bar", 0.3)
     dpg.add_text("Silence", tag="status")
-    dpg.add_text("", tag="transcripion")
-    dpg.add_text("", tag="test")
-    dpg.add_text("", tag="test2")
-    dpg.add_text(SampleRate, tag="test3")
+    dpg.add_text("", tag="transcripion-previous", wrap=1000)
+    dpg.add_text("", tag="transcripion", wrap=1000)
+    if Debug:
+        dpg.add_text("interval: ", tag="interval")
+        dpg.add_text("buffer.shape : ", tag="shape")
+        dpg.add_text("Sample rate; " + str(SampleRate), tag="sample-rate")
     dpg.add_button(label="Clear Text")
 
 dpg.create_viewport()

@@ -38,12 +38,13 @@ def respond_request():
     # Create a socket object
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    # Bind the socket to a public host, and a well-known port where file 1 will connect
+    # Bind the socket to a public host, and a well-known port where the whisper client will connect
     server_address = ('localhost', 9999)
     sock.bind(server_address)
 
     # Listen for incoming connections
     sock.listen(5)
+    logging.info("Whisper server ready to accept requests")
 
     while True:
         # Wait for a connection
