@@ -3,6 +3,7 @@ import socket
 import threading
 #Model
 import whisper
+from faster_whisper import WhisperModel
 #Performance testing
 import time
 import logging
@@ -12,8 +13,9 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 Model = 'tiny'      # Whisper model size (tiny, base, small, medium, large)
 English = True      # Use English-only model?
 Translate = False   # Translate non-English to English?
+GPU = False
 
-model = whisper.load_model(f'{Model}{".en" if English else ""}')
+model = WhisperModel(Model, device="gpu" if GPU else "cpu", compute_type="int8")
 
 def handle_connection(connection):
     while True:
@@ -25,11 +27,14 @@ def handle_connection(connection):
             break
 
         # Send a response back to file 1
-        message = model.transcribe('dictate.wav',fp16=False,language='en' if English else '',task='translate' if Translate else 'transcribe')
+        segments, info = model.transcribe('dictate.wav',language='en' if English else '',task='translate' if Translate else 'transcribe')
         end_time = time.time()  # record the end time
         execution_time = end_time - start_time  # calculate the execution time
-
-        connection.sendall(message['text'].encode())
+        sentence = ''
+        for segment in segments:
+            sentence += segment.text
+            print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+        connection.sendall(sentence.encode())
         logging.info(f"Whisper model execution time: {execution_time:.6f} seconds")
     # Close the connection
     connection.close()
