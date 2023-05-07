@@ -1,0 +1,8 @@
+datasets>=2.6.1
+transformers==4.28.0
+librosa
+evaluate>=0.3.0
+jiwer
+gradio
+ipywidgets
+tensorboardX
