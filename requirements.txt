@@ -2,7 +2,7 @@ git+https://github.com/openai/whisper.git
 ffmpeg-python==0.2.0 
 more-itertools 
 numba 
-tiktoken==0.3.1
+tiktoken==0.3.3
 tqdm
 numpy
 scipy
