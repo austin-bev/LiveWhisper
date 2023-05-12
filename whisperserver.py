@@ -1,14 +1,15 @@
 #Sockets + Threads
 import socket
 import threading
+import json
 #Model
 from faster_whisper import WhisperModel
 #Performance testing
 import time
 import logging
 
-logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
-logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.ERROR)
+logging.getLogger("faster_whisper").setLevel(logging.ERROR)
 
 Model = 'tiny'      # Whisper model size (tiny, base, small, medium, large)
 English = True      # Use English-only model?
@@ -19,24 +20,35 @@ model = WhisperModel(Model, device="gpu" if GPU else "cpu", compute_type="int8")
 
 def handle_connection(connection):
     while True:
-        # Wait for a response from the whisper client
+        # Wait for a response from the Whisper client
         data = connection.recv(1024)
         start_time = time.time()  # record the start time
         # If there is no more data to receive, break out of the loop
         if not data:
             break
+        try:
+            # Load Json
+            json_value = data.decode()
+            message = json.loads(json_value)
+            print(message)
 
-        # Send a response back to file 1
-        segments, info = model.transcribe('dictate.wav',language='en' if English else '',task='translate' if Translate else 'transcribe')
+            # Load audio into model
+            segments, info = model.transcribe('dictate.wav',language='en' if message['english'] else '',task='translate' if message['translate'] else 'transcribe')
+            sentence = ''
+            for segment in segments:
+                sentence += segment.text
 
-        sentence = ''
-        for segment in segments:
-            sentence += segment.text
-            #print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
-        connection.sendall(sentence.encode())
-        end_time = time.time()  # record the end time
-        execution_time = end_time - start_time  # calculate the execution time
-        logging.debug(f"Whisper model execution time: {execution_time:.6f} seconds")
+            # Send the transation / transcription back to the Whisper client
+            new_message = {'text': sentence, "endsegment" : message['endsegment'], 'langauge': info.language}
+            new_message = json.dumps(new_message)
+            connection.sendall(new_message.encode())
+
+            end_time = time.time()  # record the end time
+            execution_time = end_time - start_time  # calculate the execution time
+            logging.debug(f"Whisper model execution time: {execution_time:.6f} seconds")
+        except:
+            logging.error("Invalid data, cannot load dictate.wav")
+
     # Close the connection
     connection.close()
 
@@ -44,7 +56,7 @@ def respond_request():
     # Create a socket object
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    # Bind the socket to a public host, and a well-known port where the whisper client will connect
+    # Bind the socket to a public host, and a well-known port where the Whisper client will connect
     server_address = ('localhost', 9999)
     sock.bind(server_address)
 
