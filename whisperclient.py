@@ -1,3 +1,4 @@
+import collections
 import dearpygui.dearpygui as dpg
 import numpy as np
 import sounddevice as sd
@@ -12,7 +13,10 @@ Vocals = [50, 1000] # Frequency range to detect sounds that could be speech
 EndBlocks = 100     # Number of blocks of silence to wait before sending to Whisper
 Internal = 50       # Number of blocks to wait before sending to Whisper (without silence)
 Debug = True
+Max_Plot = 500
 
+data_y = collections.deque([0.0, 0.0],maxlen=Max_Plot)
+data_x = collections.deque([0.0, 0.0],maxlen=Max_Plot)
 
 class StreamHandler:
     def __init__(self):
@@ -53,15 +57,11 @@ class StreamHandler:
         freq = np.argmax(np.abs(np.fft.rfft(indata[:, 0]))) * SampleRate / frames
 
         # Update GUI
-        dpg.set_value("frequency", "Frequency: " + str(round(freq,2)))
-        old_value = dpg.get_value("progress-bar")
-        if (old_value > freq/Vocals[1]):
-            new_value = max(old_value-0.01,0)
-        elif (old_value < freq/Vocals[1]):
-            new_value = min(old_value+0.01,1.0)
-        else:
-            new_value = old_value
-        dpg.set_value("progress-bar", new_value)
+        data_x.append(1 + data_x[-1])
+        data_y.append(freq if freq < Vocals[1] else Vocals[1])
+        dpg.set_value('series_tag', [list(data_x), list(data_y)])
+        dpg.fit_axis_data('x_axis')
+        dpg.fit_axis_data('y_axis')
 
         # Check if sound in threshold
         if np.sqrt(np.mean(indata**2)) > Threshold and Vocals[0] <= freq <= Vocals[1]:           
@@ -137,9 +137,16 @@ class StreamHandler:
 dpg.create_context()
 
 with dpg.window(label="Live Whisper", tag="Primary Window"):
-    textControl = dpg.add_text("Clicks: 0", tag="frequency")
-    dpg.add_progress_bar(tag="progress-bar")
-    dpg.set_value("progress-bar", 0.3)
+    # create plot
+    with dpg.plot(label="Microphone Frequency", height=200, width=400):
+        # optionally create legend
+        dpg.add_plot_legend()
+
+        dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag='x_axis')
+        dpg.add_plot_axis(dpg.mvYAxis, label="Frequency", tag="y_axis")
+
+        # series belong to a y axis
+        dpg.add_line_series(list(data_x), list(data_y), parent="y_axis", tag="series_tag")
     dpg.add_text("Silence", tag="status")
     dpg.add_text("", tag="transcripion-previous", wrap=1000)
     dpg.add_text("", tag="transcripion", wrap=1000)

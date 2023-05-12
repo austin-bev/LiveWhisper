@@ -2,13 +2,13 @@
 import socket
 import threading
 #Model
-import whisper
 from faster_whisper import WhisperModel
 #Performance testing
 import time
 import logging
 
-logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
+logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
 
 Model = 'tiny'      # Whisper model size (tiny, base, small, medium, large)
 English = True      # Use English-only model?
@@ -28,14 +28,15 @@ def handle_connection(connection):
 
         # Send a response back to file 1
         segments, info = model.transcribe('dictate.wav',language='en' if English else '',task='translate' if Translate else 'transcribe')
-        end_time = time.time()  # record the end time
-        execution_time = end_time - start_time  # calculate the execution time
+
         sentence = ''
         for segment in segments:
             sentence += segment.text
-            print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+            #print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
         connection.sendall(sentence.encode())
-        logging.info(f"Whisper model execution time: {execution_time:.6f} seconds")
+        end_time = time.time()  # record the end time
+        execution_time = end_time - start_time  # calculate the execution time
+        logging.debug(f"Whisper model execution time: {execution_time:.6f} seconds")
     # Close the connection
     connection.close()
 
