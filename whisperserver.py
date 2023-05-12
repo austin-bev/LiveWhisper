@@ -26,28 +26,24 @@ def handle_connection(connection):
         # If there is no more data to receive, break out of the loop
         if not data:
             break
-        try:
-            # Load Json
-            json_value = data.decode()
-            message = json.loads(json_value)
-            print(message)
+        # Load Json
+        json_value = data.decode()
+        message = json.loads(json_value)
 
-            # Load audio into model
-            segments, info = model.transcribe('dictate.wav',language='en' if message['english'] else '',task='translate' if message['translate'] else 'transcribe')
-            sentence = ''
-            for segment in segments:
-                sentence += segment.text
+        # Load audio into model
+        segments, info = model.transcribe('dictate.wav',language='en' if message['english'] else '',task='translate' if message['translate'] else 'transcribe')
+        sentence = ''
+        for segment in segments:
+            sentence += segment.text
 
-            # Send the transation / transcription back to the Whisper client
-            new_message = {'text': sentence, "endsegment" : message['endsegment'], 'langauge': info.language}
-            new_message = json.dumps(new_message)
-            connection.sendall(new_message.encode())
+        # Send the transation / transcription back to the Whisper client
+        new_message = {'text': sentence, "endsegment" : message['endsegment'], 'langauge': info.language}
+        new_message = json.dumps(new_message)
+        connection.sendall(new_message.encode())
 
-            end_time = time.time()  # record the end time
-            execution_time = end_time - start_time  # calculate the execution time
-            logging.debug(f"Whisper model execution time: {execution_time:.6f} seconds")
-        except:
-            logging.error("Invalid data, cannot load dictate.wav")
+        end_time = time.time()  # record the end time
+        execution_time = end_time - start_time  # calculate the execution time
+        logging.debug(f"Whisper model execution time: {execution_time:.6f} seconds")
 
     # Close the connection
     connection.close()
