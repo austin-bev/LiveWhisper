@@ -1,6 +1,6 @@
 # LiveWhisperGUI - Whisper based transcription and translation
 
-Produces live sentence-to-sentence transcription and translation (WIP) to a DearPyGUI GUI. Powered by [faster-whisper](https://github.com/guillaumekln/faster-whisper)
+Produces live sentence-to-sentence transcription and translation to a DearPyGUI GUI. Powered by [faster-whisper](https://github.com/guillaumekln/faster-whisper)
 
 Using [OpenAI's Whisper](https://github.com/openai/whisper) model, and sounddevice library to listen to microphone.
 Audio from mic is stored if it hits a volume & frequency threshold, then when silence is detected, it saves the audio to a temp file and sends it to Whisper.
