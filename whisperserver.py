@@ -28,10 +28,14 @@ def handle_connection(connection):
             break
         # Load Json
         json_value = data.decode()
+        print(json_value)
         message = json.loads(json_value)
 
         # Load audio into model
-        segments, info = model.transcribe('dictate.wav',language='en' if message['english'] else '',task='translate' if message['translate'] else 'transcribe')
+        if message['english']:
+            segments, info = model.transcribe('dictate.wav',language='en',task='translate' if message['translate'] else 'transcribe')
+        else:
+            segments, info = model.transcribe('dictate.wav',task='translate' if message['translate'] else 'transcribe')
         sentence = ''
         for segment in segments:
             sentence += segment.text

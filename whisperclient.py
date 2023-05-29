@@ -46,6 +46,7 @@ class StreamHandler:
             json_value = data.decode()
             message = json.loads(json_value)
             new_value = message['text']
+            print(message)
             if message['endsegment']:
                 self.newsegment = False
                 dpg.set_value("transcripion", '')
@@ -53,6 +54,7 @@ class StreamHandler:
                 dpg.set_value("transcripion-previous", old_value + new_value)
                 new_value = ''
             dpg.set_value("transcripion", new_value)
+            dpg.set_value("language-detected", "Language Detected: " + str(message['langauge']))
 
             
 
@@ -100,7 +102,6 @@ class StreamHandler:
             # if recording not long enough, reset buffer.
             elif self.padding < 1 < self.buffer.shape[0] < SampleRate: 
                 self.buffer = np.zeros((0,1))
-                print("\033[2K\033[0G", end='', flush=True)
                 dpg.set_value("status","Silence")
                 logging.debug("Buffer reset. Insifficient size")
             else:
@@ -117,9 +118,12 @@ class StreamHandler:
     def process(self, sock):
         dpg.render_dearpygui_frame()
         if self.fileready:
-            message = {'translate' : False, 'english' : True, "endsegment" : self.newsegment}
-            message = json.dumps(message)
-            sock.sendall(message.encode())
+            message = {'translate' : True if dpg.get_value("task") == "Translation" else False, 
+                       'english' : True if dpg.get_value("language") == "English Only" else False, 
+                       "endsegment" : self.newsegment}
+            json_message = json.dumps(message)
+            print(json_message)
+            sock.sendall(json_message.encode())
             self.fileready = False
 
     def listen(self):
@@ -156,8 +160,10 @@ with dpg.window(label="Live Whisper", tag="Primary Window") as main_window:
         dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag='x_axis')
         dpg.add_plot_axis(dpg.mvYAxis, label="Frequency", tag="y_axis")
         dpg.add_line_series(list(data_x), list(data_y), parent="y_axis", tag="series_tag")
-    dpg.add_combo(label="Task", items=['Translation', 'Transcription'], default_value='Transcription', width=120)
+    dpg.add_combo(tag="task", label="Task", items=['Translation', 'Transcription'], default_value='Transcription', width=120)
+    dpg.add_combo(tag="language", label="Language", items=['English Only', 'Any'], default_value='English Only', width=120)
     dpg.add_text("Silence", tag="status")
+    dpg.add_text("Language Detected: ...", tag="language-detected")
     dpg.add_text("", tag="transcripion-previous", wrap=1000)
     dpg.add_text("", tag="transcripion", wrap=1000)
     if Debug:
